@@ -4,7 +4,6 @@
 // Spec: PRD-2024-001
 // </auto-generated>
 
-```csharp
 using System;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
@@ -77,7 +76,10 @@ namespace Glow.Claims.Api.Controllers
 
         private string MaskCustomerId(string customerId)
         {
-            return customerId.Substring(0, 4) + "****" + customerId.Substring(customerId.Length - 4);
+            if (string.IsNullOrEmpty(customerId) || customerId.Length < 8)
+                return "****";
+
+            return customerId.Substring(0, 4) + "****";
         }
     }
 }
@@ -88,11 +90,11 @@ namespace Glow.Claims.Api.Models
     {
         [Required]
         [RegularExpression(@"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", ErrorMessage = "Invalid UUID format.")]
-        public string ClaimId { get; set; }
+        public string ClaimId { get; set; } = string.Empty;
 
         [Required]
         [RegularExpression(@"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", ErrorMessage = "Invalid UUID format.")]
-        public string CustomerId { get; set; }
+        public string CustomerId { get; set; } = string.Empty;
 
         [Required]
         [Range(0.01, 250.0, ErrorMessage = "Claim amount must be greater than 0 and less than or equal to 250.")]
@@ -104,14 +106,14 @@ namespace Glow.Claims.Api.Models
 
         [Required]
         [RegularExpression(@"^(SCREEN|SCREEN_CRACK|DISPLAY_DAMAGE)$", ErrorMessage = "Invalid damage type.")]
-        public string DamageType { get; set; }
+        public string DamageType { get; set; } = string.Empty;
     }
 
     public class ClaimApprovalResponse
     {
-        public string ApprovalStatus { get; set; }
-        public string ReasonCode { get; set; }
-        public string Timestamp { get; set; }
+        public string ApprovalStatus { get; set; } = string.Empty;
+        public string ReasonCode { get; set; } = string.Empty;
+        public string Timestamp { get; set; } = string.Empty;
     }
 }
 
@@ -128,7 +130,7 @@ namespace Glow.Claims.Api.Services
         {
             var timestamp = DateTime.UtcNow.ToString("o");
 
-            if (request.ClaimAmount <= 250.0m && request.RiskScore < 0.3m && 
+            if (request.ClaimAmount <= 250.0m && request.RiskScore < 0.3m &&
                 (request.DamageType == "SCREEN" || request.DamageType == "SCREEN_CRACK" || request.DamageType == "DISPLAY_DAMAGE"))
             {
                 return new ClaimApprovalResponse
@@ -149,6 +151,13 @@ namespace Glow.Claims.Api.Services
             }
         }
     }
+
+    public class RiskScoreTooHighException : Exception
+    {
+        public RiskScoreTooHighException() : base("Risk score is too high for automatic approval")
+        {
+        }
+    }
 }
 
 namespace Glow.Claims.Api.Audit
@@ -158,13 +167,21 @@ namespace Glow.Claims.Api.Audit
         void LogDecision(AuditLogEntry entry);
     }
 
+    public class AuditLogger : IAuditLogger
+    {
+        public void LogDecision(AuditLogEntry entry)
+        {
+            // Stub implementation - would write to audit log in production
+            Console.WriteLine($"[AUDIT] Claim: {entry.ClaimId}, Customer: {entry.CustomerId}, Decision: {entry.Decision}, Reason: {entry.ReasonCode}");
+        }
+    }
+
     public class AuditLogEntry
     {
-        public string ClaimId { get; set; }
-        public string CustomerId { get; set; }
-        public string Decision { get; set; }
-        public string ReasonCode { get; set; }
-        public string Timestamp { get; set; }
+        public string ClaimId { get; set; } = string.Empty;
+        public string CustomerId { get; set; } = string.Empty;
+        public string Decision { get; set; } = string.Empty;
+        public string ReasonCode { get; set; } = string.Empty;
+        public string Timestamp { get; set; } = string.Empty;
     }
 }
-```
