@@ -23,50 +23,78 @@ def validate_specification(spec_data: Dict[str, Any]) -> List[str]:
     errors = []
 
     # Check required top-level fields
-    required_fields = ['endpoints', 'models', 'metadata']
+    required_fields = ['api_contract', 'inputs', 'outputs', 'decision_rules']
     for field in required_fields:
         if field not in spec_data:
             errors.append(f"Missing required field: {field}")
 
-    # Validate endpoints
-    if 'endpoints' in spec_data:
-        endpoints = spec_data['endpoints']
-        if not isinstance(endpoints, list):
-            errors.append("'endpoints' must be a list")
+    # Validate api_contract
+    if 'api_contract' in spec_data:
+        api_contract = spec_data['api_contract']
+        if not isinstance(api_contract, dict):
+            errors.append("'api_contract' must be a dictionary")
         else:
-            for idx, endpoint in enumerate(endpoints):
-                if not isinstance(endpoint, dict):
-                    errors.append(f"Endpoint {idx} must be a dictionary")
+            required_contract_fields = ['method', 'endpoint']
+            for field in required_contract_fields:
+                if field not in api_contract:
+                    errors.append(f"api_contract: Missing required field '{field}'")
+
+    # Validate inputs
+    if 'inputs' in spec_data:
+        inputs = spec_data['inputs']
+        if not isinstance(inputs, list):
+            errors.append("'inputs' must be a list")
+        else:
+            for idx, input_field in enumerate(inputs):
+                if not isinstance(input_field, dict):
+                    errors.append(f"Input {idx} must be a dictionary")
                     continue
 
-                # Check required endpoint fields
-                required_endpoint_fields = ['path', 'method', 'handler']
-                for field in required_endpoint_fields:
-                    if field not in endpoint:
-                        errors.append(f"Endpoint {idx}: Missing required field '{field}'")
+                # Check required input fields
+                required_input_fields = ['name', 'type', 'required']
+                for field in required_input_fields:
+                    if field not in input_field:
+                        errors.append(f"Input {idx}: Missing required field '{field}'")
 
-    # Validate models
-    if 'models' in spec_data:
-        models = spec_data['models']
-        if not isinstance(models, list):
-            errors.append("'models' must be a list")
+    # Validate outputs
+    if 'outputs' in spec_data:
+        outputs = spec_data['outputs']
+        if not isinstance(outputs, dict):
+            errors.append("'outputs' must be a dictionary")
         else:
-            for idx, model in enumerate(models):
-                if not isinstance(model, dict):
-                    errors.append(f"Model {idx} must be a dictionary")
+            if 'success' not in outputs:
+                errors.append("outputs: Missing required field 'success'")
+            if 'error' not in outputs:
+                errors.append("outputs: Missing required field 'error'")
+
+    # Validate decision_rules
+    if 'decision_rules' in spec_data:
+        decision_rules = spec_data['decision_rules']
+        if not isinstance(decision_rules, list):
+            errors.append("'decision_rules' must be a list")
+        else:
+            for idx, rule in enumerate(decision_rules):
+                if not isinstance(rule, dict):
+                    errors.append(f"Decision rule {idx} must be a dictionary")
                     continue
 
-                # Check required model fields
-                if 'name' not in model:
-                    errors.append(f"Model {idx}: Missing required field 'name'")
-                if 'properties' not in model:
-                    errors.append(f"Model {idx}: Missing required field 'properties'")
+                # Check required rule fields
+                required_rule_fields = ['condition', 'action']
+                for field in required_rule_fields:
+                    if field not in rule:
+                        errors.append(f"Decision rule {idx}: Missing required field '{field}'")
 
-    # Validate metadata
-    if 'metadata' in spec_data:
-        metadata = spec_data['metadata']
-        if not isinstance(metadata, dict):
-            errors.append("'metadata' must be a dictionary")
+    # Validate compliance (optional but should be structured correctly if present)
+    if 'compliance' in spec_data:
+        compliance = spec_data['compliance']
+        if not isinstance(compliance, dict):
+            errors.append("'compliance' must be a dictionary")
+
+    # Validate constraints (optional but should be structured correctly if present)
+    if 'constraints' in spec_data:
+        constraints = spec_data['constraints']
+        if not isinstance(constraints, dict):
+            errors.append("'constraints' must be a dictionary")
 
     return errors
 
@@ -109,11 +137,15 @@ def main():
         print(f"✅ Validation passed for {spec_file}")
 
         # Print summary
-        num_endpoints = len(spec_data.get('endpoints', []))
-        num_models = len(spec_data.get('models', []))
+        num_inputs = len(spec_data.get('inputs', []))
+        num_rules = len(spec_data.get('decision_rules', []))
+        api_endpoint = spec_data.get('api_contract', {}).get('endpoint', 'N/A')
+        api_method = spec_data.get('api_contract', {}).get('method', 'N/A')
+
         print(f"\nSpecification summary:")
-        print(f"  - Endpoints: {num_endpoints}")
-        print(f"  - Models: {num_models}")
+        print(f"  - API Endpoint: {api_method} {api_endpoint}")
+        print(f"  - Input Fields: {num_inputs}")
+        print(f"  - Decision Rules: {num_rules}")
 
         sys.exit(0)
 
