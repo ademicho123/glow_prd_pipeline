@@ -1,0 +1,75 @@
+version: '3.8'
+
+# Glow AI-Native Pipeline - Local Testing Environment
+# Run: docker-compose up --build
+
+services:
+  # ============================================================
+  # Pipeline Runner - Executes all stages
+  # ============================================================
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./specs:/app/specs
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
+      - ./output:/app/output
+    command: >
+      sh -c "
+        echo '🚀 Running AI-Native Pipeline...' &&
+        python scripts/prd_to_spec.py --input specs/claims-auto-approval.json --output output/specs/ &&
+        python scripts/spec_to_code.py --spec output/specs/specification.json --output output/src/ &&
+        python scripts/generate_tests.py --spec output/specs/specification.json --code output/src/ --output output/tests/ &&
+        python scripts/ai_code_review.py --code output/src/ --output output/review-report.json &&
+        echo '✅ Pipeline complete! Check ./output folder'
+      "
+
+  # ============================================================
+  # .NET Build & Test - Validates generated code compiles
+  # ============================================================
+  dotnet-test:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./output:/app/output
+    working_dir: /app
+    command: >
+      sh -c "
+        echo '🔨 Building generated code...' &&
+        if [ -f output/src/ClaimsController.cs ]; then
+          echo 'Code found, creating test project...' &&
+          dotnet new webapi -o build-test --force &&
+          cp output/src/*.cs build-test/ &&
+          cd build-test &&
+          dotnet build && 
+          echo '✅ Build successful!'
+        else
+          echo '⏳ Waiting for code generation...'
+        fi
+      "
+    depends_on:
+      - pipeline
+
+  # ============================================================
+  # Act - Run GitHub Actions locally
+  # ============================================================
+  act:
+    image: ghcr.io/catthehacker/ubuntu:act-latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
+    working_dir: /workspace
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    entrypoint: ["echo", "Run manually: act -j spec-generation --secret OPENAI_API_KEY"]
+    profiles:
+      - act
+
+volumes:
+  output:

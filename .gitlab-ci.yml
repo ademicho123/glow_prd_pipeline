@@ -1,0 +1,229 @@
+# Glow Services - AI-Native Pipeline
+# GitLab CI/CD Configuration
+
+stages:
+  - spec
+  - generate
+  - review
+  - test
+  - build
+  - deploy-staging
+  - deploy-prod
+  - monitor
+
+variables:
+  DOTNET_VERSION: "8.0"
+  DOCKER_IMAGE: $CI_REGISTRY_IMAGE
+  KUBE_NAMESPACE_STAGING: glow-staging
+  KUBE_NAMESPACE_PROD: glow-prod
+
+# ============================================================
+# PHASE 1: PRD → SPECIFICATION
+# ============================================================
+spec-generation:
+  stage: spec
+  image: python:3.11
+  script:
+    - pip install openai langchain pydantic jsonschema
+    - python scripts/prd_to_spec.py --input specs/claims-auto-approval.json --output specs/generated/
+    - python scripts/validate_spec.py specs/generated/specification.json
+  artifacts:
+    paths:
+      - specs/generated/
+    expire_in: 30 days
+  rules:
+    - changes:
+        - specs/**/*
+
+# ============================================================
+# PHASE 2: SPECIFICATION → CODE
+# ============================================================
+code-generation:
+  stage: generate
+  image: python:3.11
+  needs: [spec-generation]
+  script:
+    - pip install openai langchain jinja2
+    - python scripts/spec_to_code.py --spec specs/generated/specification.json --output src/Generated/
+    - python scripts/generate_tests.py --spec specs/generated/specification.json --code src/Generated/ --output tests/Generated/
+  artifacts:
+    paths:
+      - src/Generated/
+      - tests/Generated/
+    expire_in: 7 days
+
+# ============================================================
+# PHASE 3: AI CODE REVIEW
+# ============================================================
+ai-code-review:
+  stage: review
+  image: python:3.11
+  needs: [code-generation]
+  script:
+    - pip install openai
+    - python scripts/ai_code_review.py --code src/Generated/ --checklist "security,compliance,quality" --output review-report.json
+    - |
+      CRITICAL=$(jq '.critical_issues | length' review-report.json)
+      if [ "$CRITICAL" -gt 0 ]; then
+        echo "Critical issues found"
+        jq '.critical_issues' review-report.json
+        exit 1
+      fi
+  artifacts:
+    paths:
+      - review-report.json
+    reports:
+      codequality: review-report.json
+
+# ============================================================
+# PHASE 4: QUALITY GATES
+# ============================================================
+build:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  needs: [code-generation]
+  script:
+    - dotnet restore
+    - dotnet build --configuration Release
+  artifacts:
+    paths:
+      - bin/
+      - obj/
+
+unit-tests:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  needs: [build]
+  script:
+    - dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory ./coverage
+    - |
+      COVERAGE=$(cat coverage/**/coverage.cobertura.xml | grep -oP 'line-rate="\K[^"]+' | head -1)
+      COVERAGE_PCT=$(echo "$COVERAGE * 100" | bc)
+      echo "Coverage: $COVERAGE_PCT%"
+      if (( $(echo "$COVERAGE < 0.80" | bc -l) )); then
+        echo "Coverage below 80%"
+        exit 1
+      fi
+  coverage: '/Coverage: \d+\.\d+%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/**/coverage.cobertura.xml
+
+security-scan:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  needs: [build]
+  script:
+    - dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln-report.txt
+    - "! grep -q 'has the following vulnerable packages' vuln-report.txt"
+  allow_failure: false
+
+sast:
+  stage: test
+  image: returntocorp/semgrep
+  needs: [code-generation]
+  script:
+    - semgrep --config auto --json --output sast-report.json src/
+  artifacts:
+    reports:
+      sast: sast-report.json
+
+prompt-regression:
+  stage: test
+  image: python:3.11
+  needs: [code-generation]
+  script:
+    - pip install openai
+    - python scripts/prompt_regression.py --golden-tests tests/golden/ --threshold 0.95 --output regression-report.json
+  artifacts:
+    paths:
+      - regression-report.json
+
+# ============================================================
+# PHASE 5: BUILD CONTAINER
+# ============================================================
+build-container:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  needs: [unit-tests, security-scan, sast, prompt-regression]
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $DOCKER_IMAGE:$CI_COMMIT_SHA -t $DOCKER_IMAGE:latest .
+    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
+    - docker push $DOCKER_IMAGE:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"
+
+# ============================================================
+# PHASE 6: DEPLOY STAGING
+# ============================================================
+deploy-staging:
+  stage: deploy-staging
+  image: bitnami/kubectl:latest
+  needs: [build-container]
+  environment:
+    name: staging
+    url: https://staging.glow-claims.com
+  script:
+    - kubectl config set-cluster k8s --server="$KUBE_URL" --certificate-authority="$KUBE_CA_PEM"
+    - kubectl config set-credentials gitlab --token="$KUBE_TOKEN"
+    - kubectl config set-context default --cluster=k8s --user=gitlab --namespace=$KUBE_NAMESPACE_STAGING
+    - kubectl config use-context default
+    - kubectl set image deployment/glow-claims glow-claims=$DOCKER_IMAGE:$CI_COMMIT_SHA -n $KUBE_NAMESPACE_STAGING
+    - kubectl rollout status deployment/glow-claims -n $KUBE_NAMESPACE_STAGING --timeout=300s
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+smoke-tests:
+  stage: deploy-staging
+  image: curlimages/curl:latest
+  needs: [deploy-staging]
+  script:
+    - sleep 30
+    - curl -f https://staging.glow-claims.com/health
+    - |
+      RESPONSE=$(curl -s -X POST https://staging.glow-claims.com/api/v1/claims/screen-damage/approve \
+        -H "Content-Type: application/json" \
+        -d '{"claim_amount_gbp": 150, "damage_type": "SCREEN", "risk_score": 0.2}')
+      STATUS=$(echo $RESPONSE | jq -r '.status')
+      [ "$STATUS" = "APPROVED" ] || exit 1
+
+# ============================================================
+# PHASE 7: DEPLOY PRODUCTION
+# ============================================================
+deploy-production:
+  stage: deploy-prod
+  image: bitnami/kubectl:latest
+  needs: [smoke-tests]
+  environment:
+    name: production
+    url: https://api.glow-claims.com
+  script:
+    - kubectl config set-cluster k8s --server="$KUBE_URL_PROD" --certificate-authority="$KUBE_CA_PEM_PROD"
+    - kubectl config set-credentials gitlab --token="$KUBE_TOKEN_PROD"
+    - kubectl config set-context default --cluster=k8s --user=gitlab --namespace=$KUBE_NAMESPACE_PROD
+    - kubectl config use-context default
+    - kubectl set image deployment/glow-claims glow-claims=$DOCKER_IMAGE:$CI_COMMIT_SHA -n $KUBE_NAMESPACE_PROD
+    - kubectl rollout status deployment/glow-claims -n $KUBE_NAMESPACE_PROD --timeout=300s
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  when: manual
+
+# ============================================================
+# PHASE 8: MONITORING
+# ============================================================
+baseline-monitor:
+  stage: monitor
+  image: python:3.11
+  needs: [deploy-production]
+  script:
+    - pip install requests
+    - python scripts/baseline_check.py --metric approval_rate --threshold 0.1 --alert-on-drift
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

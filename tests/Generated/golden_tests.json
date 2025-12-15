@@ -1,0 +1,123 @@
+[
+  {
+    "golden_test_cases": [
+      {
+        "name": "Valid Input - Auto Approve",
+        "input": {
+          "claim_id": "123e4567-e89b-12d3-a456-426614174000",
+          "customer_id": "123e4567-e89b-12d3-a456-426614174001",
+          "claim_amount": 200.0,
+          "risk_score": 0.2,
+          "damage_type": "SCREEN"
+        },
+        "expected_output": {
+          "approval_status": "approved",
+          "decision_timestamp": "ISO 8601 format",
+          "reason_code": "AUTO_APPROVED"
+        },
+        "expected_reason_code": "AUTO_APPROVED"
+      },
+      {
+        "name": "Invalid Input - Claim Amount Exceeds Maximum",
+        "input": {
+          "claim_id": "123e4567-e89b-12d3-a456-426614174002",
+          "customer_id": "123e4567-e89b-12d3-a456-426614174003",
+          "claim_amount": 300.0,
+          "risk_score": 0.2,
+          "damage_type": "SCREEN"
+        },
+        "expected_output": {
+          "error": {
+            "code": "INVALID_INPUT",
+            "message": "Input validation failed"
+          }
+        },
+        "expected_reason_code": "INVALID_INPUT"
+      },
+      {
+        "name": "Invalid Input - Risk Score Exceeds Maximum",
+        "input": {
+          "claim_id": "123e4567-e89b-12d3-a456-426614174004",
+          "customer_id": "123e4567-e89b-12d3-a456-426614174005",
+          "claim_amount": 150.0,
+          "risk_score": 0.4,
+          "damage_type": "SCREEN"
+        },
+        "expected_output": {
+          "error": {
+            "code": "INVALID_INPUT",
+            "message": "Input validation failed"
+          }
+        },
+        "expected_reason_code": "INVALID_INPUT"
+      },
+      {
+        "name": "Invalid Input - Unsupported Damage Type",
+        "input": {
+          "claim_id": "123e4567-e89b-12d3-a456-426614174006",
+          "customer_id": "123e4567-e89b-12d3-a456-426614174007",
+          "claim_amount": 100.0,
+          "risk_score": 0.1,
+          "damage_type": "WATER"
+        },
+        "expected_output": {
+          "error": {
+            "code": "INVALID_INPUT",
+            "message": "Input validation failed"
+          }
+        },
+        "expected_reason_code": "INVALID_INPUT"
+      },
+      {
+        "name": "Valid Input - Auto Approve with Edge Risk Score",
+        "input": {
+          "claim_id": "123e4567-e89b-12d3-a456-426614174008",
+          "customer_id": "123e4567-e89b-12d3-a456-426614174009",
+          "claim_amount": 250.0,
+          "risk_score": 0.29,
+          "damage_type": "SCREEN_CRACK"
+        },
+        "expected_output": {
+          "approval_status": "approved",
+          "decision_timestamp": "ISO 8601 format",
+          "reason_code": "AUTO_APPROVED"
+        },
+        "expected_reason_code": "AUTO_APPROVED"
+      },
+      {
+        "name": "Invalid Input - Incorrect UUID Format for Claim ID",
+        "input": {
+          "claim_id": "invalid-uuid",
+          "customer_id": "123e4567-e89b-12d3-a456-426614174010",
+          "claim_amount": 100.0,
+          "risk_score": 0.1,
+          "damage_type": "DISPLAY_DAMAGE"
+        },
+        "expected_output": {
+          "error": {
+            "code": "INVALID_INPUT",
+            "message": "Input validation failed"
+          }
+        },
+        "expected_reason_code": "INVALID_INPUT"
+      },
+      {
+        "name": "Invalid Input - Incorrect UUID Format for Customer ID",
+        "input": {
+          "claim_id": "123e4567-e89b-12d3-a456-426614174011",
+          "customer_id": "invalid-uuid",
+          "claim_amount": 100.0,
+          "risk_score": 0.1,
+          "damage_type": "DISPLAY_DAMAGE"
+        },
+        "expected_output": {
+          "error": {
+            "code": "INVALID_INPUT",
+            "message": "Input validation failed"
+          }
+        },
+        "expected_reason_code": "INVALID_INPUT"
+      }
+    ]
+  }
+]

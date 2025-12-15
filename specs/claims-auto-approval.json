@@ -1,0 +1,54 @@
+{
+  "id": "PRD-2024-001",
+  "title": "Auto-Approval for Screen Damage Claims",
+  "domain": "Device Insurance",
+  "tenant": "Glow Financial Services",
+  "version": "1.0",
+  "status": "approved",
+  
+  "business_requirement": {
+    "summary": "Implement automated approval for low-risk screen damage claims to reduce manual processing time and improve customer experience.",
+    "user_story": "As a claims processor, I want the system to automatically approve eligible screen damage claims so that customers receive faster resolutions and I can focus on complex cases.",
+    "acceptance_criteria": [
+      "Claims under £250 for screen damage should be auto-approved if customer risk score is below 0.3",
+      "All decisions must be logged with full audit trail",
+      "System must integrate with existing Claims API",
+      "Response time must be under 500ms"
+    ]
+  },
+  
+  "constraints": {
+    "max_claim_amount_gbp": 250.00,
+    "currency": "GBP",
+    "max_risk_score": 0.3,
+    "eligible_damage_types": ["SCREEN", "SCREEN_CRACK", "DISPLAY_DAMAGE"],
+    "excluded_damage_types": ["WATER", "THEFT", "TOTAL_LOSS"]
+  },
+  
+  "compliance_requirements": {
+    "regulations": ["FCA", "GDPR", "PCI-DSS"],
+    "audit_requirements": [
+      "Every decision must log: claim_id, customer_id (masked), decision, reason_code, timestamp",
+      "Decision pathway must be fully traceable",
+      "PII must never appear in logs"
+    ],
+    "data_retention": "7 years"
+  },
+  
+  "integration": {
+    "api_endpoint": "/api/v1/claims/screen-damage/approve",
+    "method": "POST",
+    "upstream_systems": ["CustomerRiskService", "PolicyService"],
+    "downstream_systems": ["AuditService", "NotificationService"]
+  },
+  
+  "expected_outcomes": {
+    "auto_approval_target": "70-80% of eligible claims",
+    "processing_time_reduction": "60-80%",
+    "manual_review_reduction": "50%"
+  },
+  
+  "priority": "P1",
+  "target_release": "2024-Q1",
+  "owner": "Claims Product Team"
+}

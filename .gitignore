@@ -1,0 +1,48 @@
+# Glow AI-Native Pipeline - Git Ignore
+
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+
+# Generated files (commit these if you want to track AI outputs)
+# specs/generated/
+# src/Generated/
+# tests/Generated/
+
+# Reports
+review-report.json
+regression-report.json
+coverage/
+*.trx
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+output/
+
+# .NET
+bin/
+obj/
+*.dll
+*.exe
+
+# Node (if using docx-js)
+node_modules/

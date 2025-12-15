@@ -1,0 +1,121 @@
+{
+  "api_contract": {
+    "method": "POST",
+    "endpoint": "/api/v1/claims/screen-damage/approve",
+    "version": "1.0"
+  },
+  "inputs": [
+    {
+      "name": "claim_id",
+      "type": "string",
+      "required": true,
+      "validation": "UUID format"
+    },
+    {
+      "name": "customer_id",
+      "type": "string",
+      "required": true,
+      "validation": "UUID format"
+    },
+    {
+      "name": "claim_amount",
+      "type": "number",
+      "required": true,
+      "validation": "greater than 0 and less than or equal to 250.0"
+    },
+    {
+      "name": "risk_score",
+      "type": "number",
+      "required": true,
+      "validation": "greater than or equal to 0 and less than 0.3"
+    },
+    {
+      "name": "damage_type",
+      "type": "string",
+      "required": true,
+      "validation": "must be one of ['SCREEN', 'SCREEN_CRACK', 'DISPLAY_DAMAGE']"
+    }
+  ],
+  "outputs": {
+    "success": {
+      "status": "approved",
+      "fields": [
+        {
+          "name": "approval_status",
+          "type": "string"
+        },
+        {
+          "name": "decision_timestamp",
+          "type": "string",
+          "validation": "ISO 8601 format"
+        },
+        {
+          "name": "reason_code",
+          "type": "string"
+        }
+      ]
+    },
+    "error": {
+      "codes": [
+        {
+          "code": "INVALID_INPUT",
+          "message": "Input validation failed"
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "message": "User not authorized"
+        },
+        {
+          "code": "SYSTEM_ERROR",
+          "message": "Internal system error"
+        }
+      ]
+    }
+  },
+  "decision_rules": [
+    {
+      "condition": "IF claim_amount <= 250.0 AND risk_score < 0.3 AND damage_type IN ['SCREEN', 'SCREEN_CRACK', 'DISPLAY_DAMAGE']",
+      "action": "THEN auto-approve claim",
+      "reason_code": "AUTO_APPROVED"
+    },
+    {
+      "condition": "IF damage_type IN ['WATER', 'THEFT', 'TOTAL_LOSS']",
+      "action": "THEN reject claim",
+      "reason_code": "EXCLUDED_DAMAGE_TYPE"
+    }
+  ],
+  "compliance": {
+    "regulations": [
+      "FCA",
+      "GDPR",
+      "PCI-DSS"
+    ],
+    "audit_requirements": [
+      "Every decision must log: claim_id, customer_id (masked), decision, reason_code, timestamp",
+      "Decision pathway must be fully traceable",
+      "PII must never appear in logs"
+    ],
+    "pii_fields": [
+      "customer_id"
+    ]
+  },
+  "constraints": {
+    "max_values": {
+      "claim_amount": 250.0,
+      "risk_score": 0.3
+    },
+    "allowed_enums": {
+      "damage_type": [
+        "SCREEN",
+        "SCREEN_CRACK",
+        "DISPLAY_DAMAGE"
+      ]
+    }
+  },
+  "_metadata": {
+    "generated_at": "2025-12-14T20:52:33.583265+00:00",
+    "source_prd": "PRD-2024-001",
+    "generator_version": "1.0.0",
+    "model": "gpt-4o"
+  }
+}
