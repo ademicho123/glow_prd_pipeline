@@ -33,55 +33,57 @@
       "name": "damage_type",
       "type": "string",
       "required": true,
-      "validation": "must be one of ['SCREEN', 'SCREEN_CRACK', 'DISPLAY_DAMAGE']"
+      "validation": "must be one of SCREEN, SCREEN_CRACK, DISPLAY_DAMAGE"
     }
   ],
   "outputs": {
     "success": {
-      "status": "approved",
+      "status": "200 OK",
       "fields": [
         {
           "name": "approval_status",
-          "type": "string"
-        },
-        {
-          "name": "decision_timestamp",
           "type": "string",
-          "validation": "ISO 8601 format"
+          "validation": "APPROVED|REJECTED"
         },
         {
           "name": "reason_code",
-          "type": "string"
+          "type": "string",
+          "validation": "non-empty string"
+        },
+        {
+          "name": "timestamp",
+          "type": "string",
+          "validation": "ISO 8601 format"
         }
       ]
     },
     "error": {
       "codes": [
         {
-          "code": "INVALID_INPUT",
-          "message": "Input validation failed"
+          "code": "400",
+          "message": "Bad Request - Invalid Input"
         },
         {
-          "code": "UNAUTHORIZED",
-          "message": "User not authorized"
+          "code": "403",
+          "message": "Forbidden - Risk Score Too High"
         },
         {
-          "code": "SYSTEM_ERROR",
-          "message": "Internal system error"
+          "code": "500",
+          "message": "Internal Server Error"
         }
       ]
     }
   },
   "decision_rules": [
     {
-      "condition": "IF claim_amount <= 250.0 AND risk_score < 0.3 AND damage_type IN ['SCREEN', 'SCREEN_CRACK', 'DISPLAY_DAMAGE']",
-      "action": "THEN auto-approve claim",
+      "condition": "IF claim_amount <= 250.0 AND risk_score < 0.3 AND damage_type IN [SCREEN, SCREEN_CRACK, DISPLAY_DAMAGE]",
+      "action": "THEN approval_status = APPROVED",
       "reason_code": "AUTO_APPROVED"
     },
     {
-      "condition": "IF damage_type IN ['WATER', 'THEFT', 'TOTAL_LOSS']",
-      "action": "THEN reject claim",
-      "reason_code": "EXCLUDED_DAMAGE_TYPE"
+      "condition": "IF claim_amount > 250.0 OR risk_score >= 0.3 OR damage_type NOT IN [SCREEN, SCREEN_CRACK, DISPLAY_DAMAGE]",
+      "action": "THEN approval_status = REJECTED",
+      "reason_code": "MANUAL_REVIEW_REQUIRED"
     }
   ],
   "compliance": {
@@ -113,7 +115,7 @@
     }
   },
   "_metadata": {
-    "generated_at": "2025-12-14T20:52:33.583265+00:00",
+    "generated_at": "2025-12-15T04:54:21.928447+00:00",
     "source_prd": "PRD-2024-001",
     "generator_version": "1.0.0",
     "model": "gpt-4o"
