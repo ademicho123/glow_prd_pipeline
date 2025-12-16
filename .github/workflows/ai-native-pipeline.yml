@@ -71,13 +71,13 @@ jobs:
           retention-days: 30
 
   # ============================================================
-  # PHASE 2: AI CODE GENERATION (TEMPORARILY DISABLED FOR DEMO)
+  # PHASE 2: AI CODE GENERATION (Python Flask API)
   # ============================================================
   code-generation:
     name: ⚡ Specification → Code
     runs-on: ubuntu-latest
     needs: spec-generation
-    if: false  # Temporarily disabled - using existing code
+    if: needs.spec-generation.outputs.has_changes == 'true'
     outputs:
       code_generated: ${{ steps.codegen.outputs.success }}
     steps:
@@ -97,15 +97,15 @@ jobs:
       - name: Install Code Generation Dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate C# Service Code
+      - name: Generate Python Flask API Code
         id: codegen
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          mkdir -p src/generated
           python scripts/spec_to_code.py \
             --spec specs/generated/specification.json \
-            --template templates/dotnet-controller.j2 \
-            --output src/Generated/
+            --output src/generated/
 
           echo "success=true" >> $GITHUB_OUTPUT
 
@@ -113,18 +113,19 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          mkdir -p tests/generated
           python scripts/generate_tests.py \
             --spec specs/generated/specification.json \
-            --code src/Generated/ \
-            --output tests/Generated/
+            --code src/generated/ \
+            --output tests/generated/
 
       - name: Upload Generated Code
         uses: actions/upload-artifact@v4
         with:
           name: generated-code
           path: |
-            src/Generated/
-            tests/Generated/
+            src/generated/
+            tests/generated/
 
   # ============================================================
   # PHASE 3: AI CODE REVIEW (TEMPORARILY DISABLED FOR DEMO)
@@ -195,74 +196,52 @@ jobs:
             });
 
   # ============================================================
-  # PHASE 4: QUALITY GATES (Build, Test, Security)
+  # PHASE 4: QUALITY GATES (Python Validation)
   # ============================================================
   quality-gates:
     name: 🛡️ Quality Gates
     runs-on: ubuntu-latest
-    needs: spec-generation  # Simplified - using existing code
+    needs: code-generation
     steps:
       - uses: actions/checkout@v4
 
-      # Using existing code from repo instead of generating
-      # - name: Download Generated Code
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: generated-code
-      #     path: ./
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Download Generated Code
+        uses: actions/download-artifact@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          name: generated-code
+          path: ./
 
-      - name: Restore Dependencies
-        run: dotnet restore
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Build
-        run: dotnet build --no-restore --configuration Release
+      - name: Install Dependencies
+        run: |
+          pip install flask pydantic pytest
 
-      # Simplified for demo - just build, skip tests and security scans for now
+      - name: Syntax Check Generated Code
+        run: |
+          echo "✅ Checking Python syntax..."
+          python -m py_compile src/generated/*.py
+          echo "✅ Generated code is syntactically valid!"
+
+      - name: Show Generated Files
+        run: |
+          echo "📁 Generated files:"
+          ls -lh src/generated/
+          echo ""
+          echo "📄 API Code Preview:"
+          head -50 src/generated/api.py || echo "No api.py found"
+          echo ""
+          echo "📄 Models Preview:"
+          head -30 src/generated/models.py || echo "No models.py found"
+
+      # Optional: Run tests if you want
       # - name: Run Unit Tests
       #   run: |
-      #     dotnet test --no-build --configuration Release \
-      #       --collect:"XPlat Code Coverage" \
-      #       --results-directory ./coverage \
-      #       --logger "trx;LogFileName=test-results.trx"
-
-      # - name: Check Code Coverage
-      #   run: |
-      #     COVERAGE=$(dotnet tool run reportgenerator \
-      #       -reports:coverage/**/coverage.cobertura.xml \
-      #       -targetdir:coverage-report \
-      #       -reporttypes:TextSummary | grep "Line coverage" | grep -oP '\d+\.\d+')
-      #
-      #     echo "Coverage: $COVERAGE%"
-      #     if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-      #       echo "❌ Coverage below 80% threshold"
-      #       exit 1
-      #     fi
-
-      # - name: Security Scan (SAST)
-      #   uses: github/codeql-action/analyze@v3
-      #   with:
-      #     languages: csharp
-
-      # - name: Dependency Vulnerability Scan
-      #   run: dotnet list package --vulnerable --include-transitive
-
-      # - name: Secret Detection
-      #   uses: trufflesecurity/trufflehog@main
-      #   with:
-      #     path: ./
-
-      # - name: Upload Test Results
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: test-results
-      #     path: |
-      #       coverage/
-      #       coverage-report/
+      #     cd tests/generated
+      #     pytest test_api.py -v
 
   # ============================================================
   # PHASE 5: PROMPT REGRESSION TESTING (TEMPORARILY DISABLED FOR DEMO)
