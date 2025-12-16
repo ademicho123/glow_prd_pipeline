@@ -115,7 +115,7 @@ Output only the C# code, no markdown."""}
 
 def generate_models(spec: dict) -> str:
     """Generate C# model classes."""
-    
+
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -129,8 +129,22 @@ Namespace: Glow.Claims.Api.Models"""}
         ],
         temperature=0.1
     )
-    
+
     return response.choices[0].message.content
+
+def strip_markdown_fences(code: str) -> str:
+    """Remove markdown code fences from LLM-generated code."""
+    lines = code.strip().split('\n')
+
+    # Remove opening code fence (```csharp, ```cs, or just ```)
+    if lines and lines[0].strip().startswith('```'):
+        lines = lines[1:]
+
+    # Remove closing code fence
+    if lines and lines[-1].strip() == '```':
+        lines = lines[:-1]
+
+    return '\n'.join(lines)
 
 def main():
     parser = argparse.ArgumentParser(description="Generate code from specification")
@@ -163,11 +177,15 @@ def main():
 
 """
     
+    # Strip markdown fences from generated code
+    controller_code = strip_markdown_fences(controller_code)
+    models_code = strip_markdown_fences(models_code)
+
     controller_file = output_dir / "ClaimsController.cs"
     with open(controller_file, 'w') as f:
         f.write(header + controller_code)
     print(f"💾 Controller saved: {controller_file}")
-    
+
     models_file = output_dir / "Models.cs"
     with open(models_file, 'w') as f:
         f.write(header + models_code)
