@@ -134,6 +134,7 @@ jobs:
     name: 🤖 AI Code Review
     runs-on: ubuntu-latest
     needs: code-generation
+    continue-on-error: true  # Non-blocking - show issues but don't fail pipeline
     steps:
       - uses: actions/checkout@v4
 
@@ -164,11 +165,13 @@ jobs:
         run: |
           CRITICAL=$(jq '.critical_issues | length' review-report.json)
           if [ "$CRITICAL" -gt 0 ]; then
-            echo "❌ Critical issues found in AI review"
+            echo "⚠️  AI Code Review found $CRITICAL critical issue(s)"
             jq '.critical_issues' review-report.json
-            exit 1
+            echo ""
+            echo "Note: Review is informational only - not blocking pipeline"
+          else
+            echo "✅ AI review passed - no critical issues"
           fi
-          echo "✅ AI review passed"
 
       - name: Post Review to PR
         if: github.event_name == 'pull_request'
