@@ -83,7 +83,7 @@ Output only C# test code, no markdown."""}
 
 def generate_golden_tests(spec: dict) -> list:
     """Generate golden test cases for regression testing."""
-    
+
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -107,9 +107,23 @@ Include edge cases and all decision paths."""}
         response_format={"type": "json_object"},
         temperature=0.1
     )
-    
+
     result = json.loads(response.choices[0].message.content)
     return result.get("test_cases", result.get("tests", [result]))
+
+def strip_markdown_fences(code: str) -> str:
+    """Remove markdown code fences from LLM-generated code."""
+    lines = code.strip().split('\n')
+
+    # Remove opening code fence (```csharp, ```cs, or just ```)
+    if lines and lines[0].strip().startswith('```'):
+        lines = lines[1:]
+
+    # Remove closing code fence
+    if lines and lines[-1].strip() == '```':
+        lines = lines[:-1]
+
+    return '\n'.join(lines)
 
 def main():
     parser = argparse.ArgumentParser(description="Generate tests from spec and code")
@@ -140,7 +154,10 @@ def main():
 // </auto-generated>
 
 """
-    
+
+    # Strip markdown fences from generated test code
+    tests = strip_markdown_fences(tests)
+
     tests_file = output_dir / "ClaimsControllerTests.cs"
     with open(tests_file, 'w') as f:
         f.write(header + tests)
