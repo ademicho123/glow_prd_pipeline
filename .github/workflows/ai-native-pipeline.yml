@@ -128,13 +128,12 @@ jobs:
             tests/generated/
 
   # ============================================================
-  # PHASE 3: AI CODE REVIEW (TEMPORARILY DISABLED FOR DEMO)
+  # PHASE 3: AI CODE REVIEW
   # ============================================================
   ai-code-review:
     name: 🤖 AI Code Review
     runs-on: ubuntu-latest
     needs: code-generation
-    if: false  # Temporarily disabled
     steps:
       - uses: actions/checkout@v4
 
@@ -149,7 +148,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install AI Dependencies
+      - name: Install Dependencies
         run: pip install -r requirements.txt
 
       - name: AI Security & Quality Review
@@ -157,7 +156,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           python scripts/ai_code_review.py \
-            --code src/Generated/ \
+            --code src/generated/ \
             --checklist "security,performance,compliance,best-practices" \
             --output review-report.json
 
@@ -201,7 +200,7 @@ jobs:
   quality-gates:
     name: 🛡️ Quality Gates
     runs-on: ubuntu-latest
-    needs: code-generation
+    needs: [code-generation, ai-code-review]
     steps:
       - uses: actions/checkout@v4
 
