@@ -60,20 +60,20 @@ OUTPUT JSON:
 }"""
 
 def load_code_files(directory: str) -> dict:
-    """Load all C# files from directory."""
+    """Load all Python files from directory."""
     code_dir = Path(directory)
     files = {}
-    for cs_file in code_dir.glob("**/*.cs"):
-        with open(cs_file, 'r') as f:
-            files[str(cs_file)] = f.read()
+    for py_file in code_dir.glob("**/*.py"):
+        with open(py_file, 'r') as f:
+            files[str(py_file)] = f.read()
     return files
 
 def review_code(files: dict, checklist: list) -> dict:
     """Perform AI code review."""
-    
+
     code_content = ""
     for filepath, content in files.items():
-        code_content += f"\n// === FILE: {filepath} ===\n{content}\n"
+        code_content += f"\n# === FILE: {filepath} ===\n{content}\n"
     
     response = client.chat.completions.create(
         model="gpt-4o",
