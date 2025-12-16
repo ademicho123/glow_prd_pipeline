@@ -4,25 +4,28 @@
 
 ## Overview
 
-This repository demonstrates a production-ready **AI-Native CI/CD Pipeline** that:
+This repository demonstrates an **AI-Native CI/CD Pipeline** that:
 
 1. **Converts PRD → Structured Specification** (LLM-powered)
-2. **Generates Production Code** (C#/.NET)
-3. **AI Code Review** (Security, Compliance, Quality)
-4. **Automated Testing** (Unit, Integration, Prompt Regression)
-5. **Container Build & Deploy** (Staging → Production)
-6. **Post-Deployment Monitoring** (Drift Detection)
+2. **Generates Production Code** (Python Flask API)
+3. **AI Code Review** (Security, Compliance, Quality) - Optional
+4. **Automated Testing** (pytest, Prompt Regression) - Optional
+5. **Container Build & Deploy** (Staging → Production) - Optional
+6. **Post-Deployment Monitoring** (Drift Detection) - Optional
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│     PRD     │───▶│    SPEC     │───▶│    CODE     │───▶│   QUALITY   │───▶│   DEPLOY    │
-│  (JSON/MD)  │    │ (Structured)│    │  (C#/.NET)  │    │   GATES     │    │ (K8s/Azure) │
-└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
-       │                  │                  │                  │                  │
-       ▼                  ▼                  ▼                  ▼                  ▼
-   LLM Parse         LLM Generate      AI Code Review     Tests + SAST       Smoke Tests
-   + Validate        + Tests           + Security         + Coverage         + Monitor
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│     PRD     │───▶│    SPEC     │───▶│    CODE     │───▶│  QUALITY    │
+│  (JSON/MD)  │    │ (Structured)│    │   (Python)  │    │   GATES     │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+       │                  │                  │                  │
+       ▼                  ▼                  ▼                  ▼
+   LLM Parse         LLM Generate       Syntax Check        Preview Code
+   + Validate        + Tests            + Validation        + Demo Ready
 ```
+
+**Current Demo Focus:** Core pipeline (PRD → Spec → Python Code → Validation)
+**Optional Features:** Testing, security scans, deployment (can be re-enabled)
 
 ## Quick Start
 
@@ -159,17 +162,24 @@ python scripts/prd_to_spec.py --input specs/claims.json --output specs/generated
 ```
 
 ### Stage 2: Specification → Code
-Generates production C# code from specifications.
+Generates production Python Flask API from specifications.
 
 ```bash
-python scripts/spec_to_code.py --spec specs/generated/specification.json --output src/Generated/
-python scripts/generate_tests.py --spec specs/generated/specification.json --output tests/Generated/
+python scripts/spec_to_code.py --spec specs/generated/specification.json --output src/generated/
+python scripts/generate_tests.py --spec specs/generated/specification.json --output tests/generated/
 ```
 
-**Output:** 
-- `src/Generated/ClaimsController.cs`
-- `src/Generated/Models.cs`
-- `tests/Generated/ClaimsControllerTests.cs`
+**Output:**
+- `src/generated/api.py` - Flask API with routes
+- `src/generated/models.py` - Pydantic models
+- `tests/generated/test_api.py` - pytest tests
+
+**Run the generated API:**
+```bash
+pip install flask pydantic
+python src/app.py
+# API runs at http://localhost:5000
+```
 
 ### Stage 3: AI Code Review
 Automated security, quality, and compliance review.
@@ -188,14 +198,18 @@ python scripts/ai_code_review.py --code src/Generated/ --output review-report.js
 ### Stage 4: Quality Gates
 Standard CI/CD quality checks.
 
-| Gate | Tool | Threshold |
-|------|------|-----------|
-| Build | dotnet build | Must pass |
-| Unit Tests | xUnit | Must pass |
-| Code Coverage | Coverlet | ≥80% |
-| Security (SAST) | CodeQL/Semgrep | No critical |
-| Dependencies | dotnet list vulnerable | No high/critical |
-| Secrets | TruffleHog | None detected |
+**Demo Configuration (Active):**
+| Gate | Tool | Status |
+|------|------|--------|
+| Syntax Check | python -m py_compile | ✅ Active |
+| Code Preview | cat/head | ✅ Active |
+
+**Optional (Can be re-enabled):**
+| Gate | Tool | Status |
+|------|------|--------|
+| Unit Tests | pytest | ⏸️ Disabled for demo |
+| Security (SAST) | CodeQL | ⏸️ Disabled for demo |
+| Secrets | TruffleHog | ⏸️ Disabled for demo |
 
 ### Stage 5: Prompt Regression
 Detects logic drift in LLM outputs.
@@ -212,27 +226,27 @@ Container build → Staging → Production with smoke tests.
 ## Directory Structure
 
 ```
-glow-pipeline/
+glow_prd_pipeline/
 ├── .github/
 │   └── workflows/
-│       └── ai-native-pipeline.yml    # GitHub Actions
-├── .gitlab-ci.yml                     # GitLab CI/CD
-├── Jenkinsfile                        # Jenkins
-├── Dockerfile                         # Container build
+│       └── ai-native-pipeline.yml    # GitHub Actions pipeline
 ├── specs/
 │   ├── claims-auto-approval.json     # PRD input
 │   └── generated/                     # AI-generated specs
 ├── src/
-│   └── Generated/                     # AI-generated code
+│   ├── app.py                        # Flask app runner
+│   └── generated/                    # AI-generated Python code
+│       ├── api.py                    # Flask API endpoints
+│       └── models.py                 # Pydantic models
 ├── tests/
-│   ├── Generated/                     # AI-generated tests
-│   └── golden/                        # Prompt regression tests
+│   └── generated/                    # AI-generated pytest tests
+│       └── test_api.py
 └── scripts/
     ├── prd_to_spec.py                # PRD → Spec
-    ├── spec_to_code.py               # Spec → Code
-    ├── generate_tests.py             # Test generator
-    ├── ai_code_review.py             # AI reviewer
-    └── prompt_regression.py          # Drift detection
+    ├── spec_to_code.py               # Spec → Python code
+    ├── generate_tests.py             # pytest test generator
+    ├── validate_spec.py              # Spec schema validator
+    └── config.py                     # Config loader
 ```
 
 ---

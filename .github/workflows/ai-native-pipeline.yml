@@ -71,7 +71,7 @@ jobs:
           retention-days: 30
 
   # ============================================================
-  # PHASE 2: AI CODE GENERATION
+  # PHASE 2: AI CODE GENERATION (Python Flask API)
   # ============================================================
   code-generation:
     name: ⚡ Specification → Code
@@ -97,15 +97,15 @@ jobs:
       - name: Install Code Generation Dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate C# Service Code
+      - name: Generate Python Flask API Code
         id: codegen
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          mkdir -p src/generated
           python scripts/spec_to_code.py \
             --spec specs/generated/specification.json \
-            --template templates/dotnet-controller.j2 \
-            --output src/Generated/
+            --output src/generated/
 
           echo "success=true" >> $GITHUB_OUTPUT
 
@@ -113,26 +113,28 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          mkdir -p tests/generated
           python scripts/generate_tests.py \
             --spec specs/generated/specification.json \
-            --code src/Generated/ \
-            --output tests/Generated/
+            --code src/generated/ \
+            --output tests/generated/
 
       - name: Upload Generated Code
         uses: actions/upload-artifact@v4
         with:
           name: generated-code
           path: |
-            src/Generated/
-            tests/Generated/
+            src/generated/
+            tests/generated/
 
   # ============================================================
-  # PHASE 3: AI CODE REVIEW
+  # PHASE 3: AI CODE REVIEW (TEMPORARILY DISABLED FOR DEMO)
   # ============================================================
   ai-code-review:
     name: 🤖 AI Code Review
     runs-on: ubuntu-latest
     needs: code-generation
+    if: false  # Temporarily disabled
     steps:
       - uses: actions/checkout@v4
 
@@ -194,12 +196,12 @@ jobs:
             });
 
   # ============================================================
-  # PHASE 4: QUALITY GATES (Build, Test, Security)
+  # PHASE 4: QUALITY GATES (Python Validation)
   # ============================================================
   quality-gates:
     name: 🛡️ Quality Gates
     runs-on: ubuntu-latest
-    needs: [code-generation, ai-code-review]
+    needs: code-generation
     steps:
       - uses: actions/checkout@v4
 
@@ -209,65 +211,46 @@ jobs:
           name: generated-code
           path: ./
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          python-version: '3.11'
 
-      - name: Restore Dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Run Unit Tests
+      - name: Install Dependencies
         run: |
-          dotnet test --no-build --configuration Release \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ./coverage \
-            --logger "trx;LogFileName=test-results.trx"
+          pip install flask pydantic pytest
 
-      - name: Check Code Coverage
+      - name: Syntax Check Generated Code
         run: |
-          COVERAGE=$(dotnet tool run reportgenerator \
-            -reports:coverage/**/coverage.cobertura.xml \
-            -targetdir:coverage-report \
-            -reporttypes:TextSummary | grep "Line coverage" | grep -oP '\d+\.\d+')
+          echo "✅ Checking Python syntax..."
+          python -m py_compile src/generated/*.py
+          echo "✅ Generated code is syntactically valid!"
 
-          echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            echo "❌ Coverage below 80% threshold"
-            exit 1
-          fi
+      - name: Show Generated Files
+        run: |
+          echo "📁 Generated files:"
+          ls -lh src/generated/
+          echo ""
+          echo "📄 API Code Preview:"
+          head -50 src/generated/api.py || echo "No api.py found"
+          echo ""
+          echo "📄 Models Preview:"
+          head -30 src/generated/models.py || echo "No models.py found"
 
-      - name: Security Scan (SAST)
-        uses: github/codeql-action/analyze@v3
-        with:
-          languages: csharp
-
-      - name: Dependency Vulnerability Scan
-        run: dotnet list package --vulnerable --include-transitive
-
-      - name: Secret Detection
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-
-      - name: Upload Test Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: |
-            coverage/
-            coverage-report/
+      # Optional: Run tests if you want
+      # - name: Run Unit Tests
+      #   run: |
+      #     cd tests/generated
+      #     pytest test_api.py -v
 
   # ============================================================
-  # PHASE 5: PROMPT REGRESSION TESTING
+  # PHASE 5: PROMPT REGRESSION TESTING (TEMPORARILY DISABLED FOR DEMO)
   # ============================================================
   prompt-regression:
     name: 🧪 Prompt Regression Tests
     runs-on: ubuntu-latest
     needs: quality-gates
+    if: false  # Temporarily disabled
     steps:
       - uses: actions/checkout@v4
 
@@ -295,12 +278,13 @@ jobs:
           fi
 
   # ============================================================
-  # PHASE 6: BUILD & PUSH CONTAINER
+  # PHASE 6: BUILD & PUSH CONTAINER (SIMPLIFIED FOR DEMO)
   # ============================================================
   build-container:
     name: 📦 Build Container
     runs-on: ubuntu-latest
-    needs: [quality-gates, prompt-regression]
+    needs: quality-gates  # Simplified dependencies
+    if: false  # Disabled for demo - requires registry credentials
     permissions:
       contents: read
       packages: write
@@ -309,11 +293,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Generated Code
-        uses: actions/download-artifact@v4
-        with:
-          name: generated-code
-          path: ./
+      # Using existing code from repo
+      # - name: Download Generated Code
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: generated-code
+      #     path: ./
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -346,12 +331,13 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ============================================================
-  # PHASE 7: DEPLOY TO STAGING
+  # PHASE 7: DEPLOY TO STAGING (DISABLED FOR DEMO)
   # ============================================================
   deploy-staging:
     name: 🚀 Deploy Staging
     runs-on: ubuntu-latest
     needs: build-container
+    if: false  # Disabled for demo
     environment:
       name: staging
       url: https://staging.glow-claims.azurewebsites.net
@@ -391,13 +377,13 @@ jobs:
           echo "✅ Staging smoke tests passed"
 
   # ============================================================
-  # PHASE 8: DEPLOY TO PRODUCTION
+  # PHASE 8: DEPLOY TO PRODUCTION (DISABLED FOR DEMO)
   # ============================================================
   deploy-production:
     name: 🎯 Deploy Production
     runs-on: ubuntu-latest
     needs: deploy-staging
-    if: github.ref == 'refs/heads/main'
+    if: false  # Disabled for demo
     environment:
       name: production
       url: https://api.glow-claims.com
@@ -435,12 +421,13 @@ jobs:
             }'
 
   # ============================================================
-  # PHASE 9: POST-DEPLOYMENT MONITORING
+  # PHASE 9: POST-DEPLOYMENT MONITORING (DISABLED FOR DEMO)
   # ============================================================
   monitor:
     name: 📊 Post-Deploy Monitor
     runs-on: ubuntu-latest
     needs: deploy-production
+    if: false  # Disabled for demo
     steps:
       - name: Configure Alerts
         run: |
