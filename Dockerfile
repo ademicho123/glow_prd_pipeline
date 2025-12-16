@@ -1,56 +1,46 @@
-# Glow Claims API - Production Dockerfile
+# Glow Claims API - Python Flask
 # Multi-stage build for optimized image size
 
 # === BUILD STAGE ===
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+FROM python:3.11-slim as builder
 
-# Copy project files
-COPY ["src/*.csproj", "src/"]
-COPY ["tests/*.csproj", "tests/"]
+WORKDIR /app
 
-# Restore dependencies
-RUN dotnet restore "src/Glow.Claims.Api.csproj"
-
-# Copy source code
-COPY src/ src/
-COPY tests/ tests/
-
-# Build
-WORKDIR /src/src
-RUN dotnet build -c Release -o /app/build
-
-# === TEST STAGE ===
-FROM build AS test
-WORKDIR /src/tests
-RUN dotnet test --no-restore --logger:trx
-
-# === PUBLISH STAGE ===
-FROM build AS publish
-WORKDIR /src/src
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 
 # === RUNTIME STAGE ===
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM python:3.11-slim
+
 WORKDIR /app
 
 # Security: Run as non-root user
-RUN addgroup --system --gid 1001 glowgroup && \
-    adduser --system --uid 1001 --gid 1001 glowuser
+RUN groupadd --system --gid 1001 glowgroup && \
+    useradd --system --uid 1001 --gid glowgroup glowuser
+
+# Copy dependencies from builder
+COPY --from=builder /root/.local /home/glowuser/.local
+
+# Copy application code
+COPY --chown=glowuser:glowgroup src/ ./src/
+COPY --chown=glowuser:glowgroup specs/ ./specs/
+COPY --chown=glowuser:glowgroup scripts/ ./scripts/
+
+# Switch to non-root user
 USER glowuser
 
-# Copy published app
-COPY --from=publish /app/publish .
+# Add local bin to PATH
+ENV PATH=/home/glowuser/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_APP=src/app.py
+
+# Expose Flask port
+EXPOSE 5000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
 
-# Environment
-ENV ASPNETCORE_URLS=http://+:8080
-ENV ASPNETCORE_ENVIRONMENT=Production
-ENV DOTNET_RUNNING_IN_CONTAINER=true
-
-EXPOSE 8080
-
-ENTRYPOINT ["dotnet", "Glow.Claims.Api.dll"]
+# Run the application
+CMD ["python", "src/app.py"]
