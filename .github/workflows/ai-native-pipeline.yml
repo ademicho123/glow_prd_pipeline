@@ -258,6 +258,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
       - name: Run Golden Test Cases
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
