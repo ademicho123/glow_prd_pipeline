@@ -4,9 +4,6 @@
 // Spec: PRD-2024-001
 // </auto-generated>
 
-Below are the C# model classes with data annotations for validation, including XML documentation, for the specified request and response models. These classes are designed to be used within the `Glow.Claims.Api.Models` namespace.
-
-```csharp
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
@@ -97,6 +94,3 @@ namespace Glow.Claims.Api.Models
         public string Message { get; set; }
     }
 }
-```
-
-These classes include data annotations for validation and XML documentation comments to describe each property and class. The `ClaimRequest` class validates the input data, while the `ClaimResponse` class represents a successful response. The `ErrorResponse` class is used to represent error responses with specific codes and messages.
