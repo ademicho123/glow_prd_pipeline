@@ -1,0 +1,207 @@
+{
+  "id": "PRD-2024-002",
+  "title": "Automated Customer Service Chatbot",
+  "domain": "Customer Service",
+  "tenant": "Glow Financial Services",
+  "version": "1.0",
+  "status": "approved",
+
+  "business_requirement": {
+    "summary": "Build a GenAI-powered chatbot to handle routine customer inquiries (billing, FAQs, troubleshooting) reducing human agent workload and operational costs.",
+    "user_story": "As a customer, I want to get instant answers to common questions about my account, billing, and services without waiting for a human agent.",
+    "acceptance_criteria": [
+      "Chatbot must respond to queries within 3 seconds",
+      "Handle billing inquiries: balance check, payment due date, payment history",
+      "Handle FAQ topics: service plans, coverage areas, device compatibility",
+      "Handle basic troubleshooting: password reset, account unlock, service activation",
+      "Escalate to human agent when confidence score is below 0.7",
+      "All conversations must be logged for audit and training",
+      "Support 24/7 availability"
+    ]
+  },
+
+  "intents": [
+    {
+      "name": "CHECK_BALANCE",
+      "description": "Customer wants to check account balance",
+      "sample_utterances": [
+        "What is my current balance?",
+        "How much do I owe?",
+        "Show me my account balance"
+      ],
+      "required_entities": ["customer_id"],
+      "action": "FETCH_BALANCE"
+    },
+    {
+      "name": "PAYMENT_DUE_DATE",
+      "description": "Customer wants to know payment due date",
+      "sample_utterances": [
+        "When is my payment due?",
+        "What's my bill due date?",
+        "When do I need to pay?"
+      ],
+      "required_entities": ["customer_id"],
+      "action": "FETCH_DUE_DATE"
+    },
+    {
+      "name": "PAYMENT_HISTORY",
+      "description": "Customer wants to see past payments",
+      "sample_utterances": [
+        "Show my payment history",
+        "What payments have I made?",
+        "List my recent payments"
+      ],
+      "required_entities": ["customer_id"],
+      "action": "FETCH_PAYMENT_HISTORY"
+    },
+    {
+      "name": "PASSWORD_RESET",
+      "description": "Customer needs to reset password",
+      "sample_utterances": [
+        "I forgot my password",
+        "Reset my password",
+        "Can't login to my account"
+      ],
+      "required_entities": ["customer_email"],
+      "action": "INITIATE_PASSWORD_RESET"
+    },
+    {
+      "name": "ACCOUNT_UNLOCK",
+      "description": "Customer account is locked",
+      "sample_utterances": [
+        "My account is locked",
+        "Unlock my account",
+        "I'm locked out"
+      ],
+      "required_entities": ["customer_id", "verification_method"],
+      "action": "UNLOCK_ACCOUNT"
+    },
+    {
+      "name": "SERVICE_PLANS",
+      "description": "Customer asking about available plans",
+      "sample_utterances": [
+        "What plans do you offer?",
+        "Tell me about your services",
+        "What are my plan options?"
+      ],
+      "required_entities": [],
+      "action": "FETCH_SERVICE_PLANS"
+    },
+    {
+      "name": "ESCALATE_TO_HUMAN",
+      "description": "Customer wants to speak to human agent",
+      "sample_utterances": [
+        "Talk to a human",
+        "Speak to an agent",
+        "I need a real person"
+      ],
+      "required_entities": [],
+      "action": "TRANSFER_TO_AGENT"
+    }
+  ],
+
+  "constraints": {
+    "max_response_time_ms": 3000,
+    "min_confidence_threshold": 0.7,
+    "max_conversation_turns_before_escalation": 10,
+    "supported_languages": ["en-GB", "en-US"],
+    "max_payment_history_records": 12
+  },
+
+  "escalation_rules": [
+    {
+      "condition": "confidence_score < 0.7",
+      "action": "ESCALATE",
+      "reason_code": "LOW_CONFIDENCE"
+    },
+    {
+      "condition": "intent == 'COMPLAINT'",
+      "action": "ESCALATE",
+      "reason_code": "COMPLAINT_HANDLING"
+    },
+    {
+      "condition": "intent == 'CANCEL_SERVICE'",
+      "action": "ESCALATE",
+      "reason_code": "RETENTION_REQUIRED"
+    },
+    {
+      "condition": "conversation_turns > 10",
+      "action": "ESCALATE",
+      "reason_code": "EXTENDED_CONVERSATION"
+    },
+    {
+      "condition": "customer_sentiment == 'NEGATIVE'",
+      "action": "ESCALATE",
+      "reason_code": "UNHAPPY_CUSTOMER"
+    }
+  ],
+
+  "integrations": {
+    "llm_provider": "OpenAI",
+    "llm_model": "gpt-4o",
+    "knowledge_base": "RAG_VECTOR_STORE",
+    "crm_system": "Salesforce",
+    "billing_system": "SAP",
+    "authentication": "OAuth2"
+  },
+
+  "api_endpoints": [
+    {
+      "method": "POST",
+      "endpoint": "/api/v1/chatbot/message",
+      "description": "Send message and get response",
+      "request": {
+        "customer_id": "string",
+        "session_id": "string",
+        "message": "string"
+      },
+      "response": {
+        "response_text": "string",
+        "intent": "string",
+        "confidence": "number",
+        "escalated": "boolean",
+        "session_id": "string"
+      }
+    },
+    {
+      "method": "POST",
+      "endpoint": "/api/v1/chatbot/session/start",
+      "description": "Start new chat session"
+    },
+    {
+      "method": "POST",
+      "endpoint": "/api/v1/chatbot/session/end",
+      "description": "End chat session"
+    },
+    {
+      "method": "GET",
+      "endpoint": "/api/v1/chatbot/history/{session_id}",
+      "description": "Get conversation history"
+    }
+  ],
+
+  "compliance_requirements": {
+    "regulations": ["GDPR", "FCA", "PCI-DSS"],
+    "audit_requirements": [
+      "Log all customer interactions with timestamps",
+      "Store conversation history for 7 years",
+      "Mask PII in logs (account numbers, emails)",
+      "Record escalation reasons",
+      "Track response times for SLA reporting"
+    ],
+    "data_retention": "7 years",
+    "pii_fields": ["customer_id", "customer_email", "account_number", "phone_number"]
+  },
+
+  "expected_outcomes": {
+    "human_agent_reduction": "60-70%",
+    "average_response_time": "< 2 seconds",
+    "customer_satisfaction_target": "85%",
+    "first_contact_resolution": "75%",
+    "cost_savings": "40-50%"
+  },
+
+  "priority": "P1",
+  "target_release": "2024-Q2",
+  "owner": "Customer Experience Team"
+}
